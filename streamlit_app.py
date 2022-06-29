@@ -1,38 +1,94 @@
-from collections import namedtuple
-import altair as alt
-import math
-import pandas as pd
+# Core Pkg
 import streamlit as st
 
-"""
-# Welcome to Streamlit!
+# Additional Pkgs / Summarization Pkgs
+# TextRanl Algorithm
+from gensim.summarization import summarize
 
-Edit `/streamlit_app.py` to customize this app to your heart's desire :heart:
+# LexRank Algorithm
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer 
+from sumy.summarizers.lex_rank import LexRankSummarizer
 
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
+# EDA Pkgs
+import pandas as pd
+# Data visualization
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg') # TkAgg # Backend
+#import seaborn as sns
+import altair as alt
 
-In the meantime, below is an example of what you can do with just a few lines of code:
-"""
+# Fxn for LexRank Summarization
+def sumy_summarizer(docx,num=2):
+	parser = PlaintextParser.from_string(docx,Tokenizer("english"))
+	lex_summarizer = LexRankSummarizer()
+	summary = lex_summarizer(parser.document,num)
+	summary_list = [str(sentence) for sentence in summary]
+	result = ' '.join(summary_list)
+	return result
+
+# Evaluate Summary
+from rouge import Rouge 
+def evaluate_summary(summary,reference):
+	r = Rouge()
+	eval_score = r.get_scores(summary,reference)
+	eval_score_df = pd.DataFrame(eval_score[0])	
+	return eval_score_df
+
+#####################################################
+def main():
+	"""A Simple Summarization NLP App"""
+	st.title("Summarizer App")
+
+	menu = ["Home","About"]
+	choice = st.sidebar.selectbox("Menu",menu)
+
+	if choice == "Home":
+		st.subheader("Summarization")
+		raw_text = st.text_area("Enter Text Here")
+
+		if st.button("Summarize"):
+			with st.expander("Original Text"):
+				st.write(raw_text)
+			# Layout
+			c1,c2 = st.columns(2)
+			with c1:
+				with st.expander("LexRank Summary"):
+					my_summary = sumy_summarizer(raw_text)
+					document_len = {"Original":len(raw_text),"Summary":len(my_summary)}
+					st.write(document_len)
+					st.write(my_summary)
+
+					st.info("Rouge Score")
+					eval_df = evaluate_summary(my_summary,raw_text)
+					st.dataframe(eval_df)
+
+					eval_df['metrics'] = eval_df.index
+					c = alt.Chart(eval_df).mark_bar().encode(
+						x='metrics',y='rouge-1')
+					st.altair_chart(c)
+			with c2:
+				with st.expander("TextRank Summary"):
+					my_summary = summarize(raw_text)
+					document_len = {"Original":len(raw_text),"Summary":len(my_summary)}
+					st.write(document_len)
+					st.write(my_summary)
+
+					st.info("Rouge Score")
+					eval_df = evaluate_summary(my_summary,raw_text)
+					st.dataframe(eval_df)
+
+					eval_df['metrics'] = eval_df.index
+					c = alt.Chart(eval_df).mark_bar().encode(
+					x='metrics',y='rouge-1')
+					st.altair_chart(c)
+	
+	else:
+		st.subheader("About")
 
 
-with st.echo(code_location='below'):
-    total_points = st.slider("Number of points in spiral", 1, 5000, 2000)
-    num_turns = st.slider("Number of turns in spiral", 1, 100, 9)
+if __name__ == '__main__':
+	main()
 
-    Point = namedtuple('Point', 'x y')
-    data = []
 
-    points_per_turn = total_points / num_turns
-
-    for curr_point_num in range(total_points):
-        curr_turn, i = divmod(curr_point_num, points_per_turn)
-        angle = (curr_turn + 1) * 2 * math.pi * i / points_per_turn
-        radius = curr_point_num / total_points
-        x = radius * math.cos(angle)
-        y = radius * math.sin(angle)
-        data.append(Point(x, y))
-
-    st.altair_chart(alt.Chart(pd.DataFrame(data), height=500, width=500)
-        .mark_circle(color='#0068c9', opacity=0.5)
-        .encode(x='x:Q', y='y:Q'))
